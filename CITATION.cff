@@ -2,18 +2,16 @@
 # Visit https://bit.ly/cffinit to generate yours today!
 
 cff-version: 1.2.0
-title: fastcrypto
+title: mangekyou
 message: >-
   If you use this software, please cite it using the
   metadata from this file.
 type: software
 authors:
-  - name: Mysten Labs
-    website: 'https://mystenlabs.com'
-repository-code: 'https://github.com/MystenLabs/fastcrypto'
+  - name: Mangekyou Network
 abstract: >-
-  fastcrypto is a common cryptography library used in
-  software at Mysten Labs.
+  mangekyou is a common cryptography library used in
+  software at Mangekyou Network.
 keywords:
   - cryptography
 license: Apache-2.0
