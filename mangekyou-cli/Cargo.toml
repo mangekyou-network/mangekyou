@@ -1,0 +1,28 @@
+[package]
+name = "mangekyou-cli"
+version = "0.1.1"
+license = "Apache-2.0"
+edition = "2021"
+publish = ["crates-io"]
+description = "Command line tools for cryptographic functions"
+
+[dependencies]
+clap = { version = "4.1.8", features = ["derive"] }
+mangekyou = { path = "../mangekyou", features = ["copy_key"] }
+hex = "0.4.3"
+rand.workspace = true
+exitcode = "1.1.2"
+bcs.workspace = true
+serde = { version = "1.0.156", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd = "2.0.0"
+regex = "1.5.4"
+
+[[bin]]
+name = "ecvrf-cli"
+path = "src/ecvrf.rs"
+
+[[bin]]
+name = "encode-cli"
+path = "src/encode_cli.rs"
