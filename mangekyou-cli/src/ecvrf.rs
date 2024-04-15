@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use mangekyou::vrf::ecvrf::{ECVRFKeyPair, ECVRFPrivateKey, ECVRFProof, ECVRFPublicKey};
-use mangekyou::vrf::{VRFKeyPair, VRFProof};
+use mangekyou::kamui_vrf::ecvrf::{ECVRFKeyPair, ECVRFPrivateKey, ECVRFProof, ECVRFPublicKey};
+use mangekyou::kamui_vrf::{VRFKeyPair, VRFProof};
 use rand::thread_rng;
 use std::io::{Error, ErrorKind};
 

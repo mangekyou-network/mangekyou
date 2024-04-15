@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 //! This module contains a selection of cryptographic hash functions implementing a common [HashFunction] trait.
 //!
 //! # Example
@@ -313,3 +316,4 @@ impl Debug for EllipticCurveMultisetHash {
         f.debug_struct("Accumulator").finish()
     }
 }
+

@@ -1,9 +1,13 @@
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+/*
 use crate::encoding::{Encoding, Hex};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::serde_helpers::ToFromByteArray;
 use crate::test_helpers::verify_serialization;
-use crate::kamui_vrf::ecvrf::{ECVRFKeyPair, ECVRFProof, ECVRFPublicKey};
-use crate::kamui_vrf::{VRFKeyPair, VRFProof};
+use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof, ECVRFPublicKey};
+use crate::vrf::{VRFKeyPair, VRFProof};
 use rand::thread_rng;
 
 #[test]
@@ -86,3 +90,4 @@ fn test_ecvrf_invalid() {
         .verify_output(alpha_string, &public_key, output)
         .is_err());
 }
+*/

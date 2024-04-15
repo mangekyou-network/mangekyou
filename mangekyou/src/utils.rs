@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 #[macro_export]
 macro_rules! impl_base64_display_fmt {
     ($type:ty) => {

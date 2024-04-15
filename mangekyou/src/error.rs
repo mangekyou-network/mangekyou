@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Collection of errors to be used in mangekyou.
 //!
 //! A function should validate its arguments and return an indicative errors where needed.
@@ -10,7 +13,7 @@ use thiserror::Error;
 
 pub type MangekyouResult<T> = Result<T, MangekyouError>;
 
-/// Collection of errors to be used in Mangekyou.
+/// Collection of errors to be used in mangekyou.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum MangekyouError {
     /// Invalid value was given to the function
@@ -57,9 +60,3 @@ pub enum MangekyouError {
     #[error("General cryptographic error")]
     GeneralOpaqueError,
 }
-
-// impl From<signature::Error> for MangekyouError {
-//     fn from(_: signature::Error) -> Self {
-//         MangekyouError::InvalidSignature
-//     }
-// }

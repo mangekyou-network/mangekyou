@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use base64ct::Encoding as _;
 use schemars::JsonSchema;
 use serde::{
@@ -164,8 +167,8 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 /// - Derive by calling [generate_bytes_representation].
 /// - Uses Base64 when serialized with a human readable serializer, and raw bytes otherwise.
 ///
-/// Note that in theory external types should not be stored in Sui and only be serialized with
-/// is_human_readable(). For storage and computation in Sui, internal types should be used (see
+/// Note that in theory external types should not be stored in Sol and only be serialized with
+/// is_human_readable(). For storage and computation in Sol, internal types should be used (see
 /// above).
 ///
 
@@ -263,6 +266,7 @@ impl<const N: usize> Display for BytesRepresentation<N> {
         write!(f, "{}", Base64::encode(self.0))
     }
 }
+
 
 // #[cfg(test)]
 // mod tests {

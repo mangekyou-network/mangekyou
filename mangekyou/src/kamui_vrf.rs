@@ -85,8 +85,8 @@ pub mod ecvrf {
 
 
     /// draft-irtf-cfrg-vrf-15 specifies suites for suite-strings 0x00-0x04 and notes that future
-    /// designs should specify a different suite_string constant, so we use "sui_vrf" here.
-    const SUITE_STRING: &[u8; 7] = b"sui_vrf";
+    /// designs should specify a different suite_string constant, so we use "sol_vrf" here.
+    const SUITE_STRING: &[u8; 7] = b"sol_vrf";
 
     /// Length of challenges. Must not exceed the length of field elements which is 32 in this case.
     /// We set C_LEN = 16 which is the same as the existing ECVRF suites in draft-irtf-cfrg-vrf-15.
@@ -96,7 +96,7 @@ pub mod ecvrf {
     type H = Sha512;
 
     /// Domain separation tag used in ecvrf_encode_to_curve (see also draft-irtf-cfrg-hash-to-curve-16)
-    const DST: &[u8; 49] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_sui_vrf";
+    const DST: &[u8; 49] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_sol_vrf";
 
     pub struct ECVRFPublicKey(PodRistrettoPoint);
 

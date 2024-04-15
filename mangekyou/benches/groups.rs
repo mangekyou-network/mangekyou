@@ -1,4 +1,5 @@
-/*
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #[macro_use]
 extern crate criterion;
 
@@ -31,6 +32,9 @@ mod group_benches {
 
     fn add(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Add");
+        add_single::<G1Element, _>("BLS12381-G1", &mut group);
+        add_single::<G2Element, _>("BLS12381-G2", &mut group);
+        add_single::<GTElement, _>("BLS12381-GT", &mut group);
         add_single::<RistrettoPoint, _>("Ristretto255", &mut group);
     }
 
@@ -60,7 +64,37 @@ mod group_benches {
 
     fn scale(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Scalar To Point Multiplication");
+        scale_single::<G1Element, _>("BLS12381-G1", &mut group);
+        scale_single::<G2Element, _>("BLS12381-G2", &mut group);
+        scale_single::<GTElement, _>("BLS12381-GT", &mut group);
         scale_single::<RistrettoPoint, _>("Ristretto255", &mut group);
+        scale_single::<ProjectivePoint, _>("Secp256r1", &mut group);
+
+        scale_single_precomputed::<
+            ProjectivePoint,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
+            _,
+        >("Secp256r1 Fixed window (16)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
+            _,
+        >("Secp256r1 Fixed window (32)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
+            _,
+        >("Secp256r1 Fixed window (64)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
+            _,
+        >("Secp256r1 Fixed window (128)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
+            _,
+        >("Secp256r1 Fixed window (256)", &mut group);
     }
 
     fn blst_msm_single<G: GroupElement + MultiScalarMul, M: Measurement>(
@@ -157,6 +191,8 @@ mod group_benches {
 
     fn hash_to_group(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Hash-to-group");
+        hash_to_group_single::<G1Element, _>("BLS12381-G1", &mut group);
+        hash_to_group_single::<G2Element, _>("BLS12381-G2", &mut group);
         hash_to_group_single::<RistrettoPoint, _>("Ristretto255", &mut group);
     }
 
@@ -262,4 +298,3 @@ mod group_benches {
 }
 
 criterion_main!(group_benches::group_benches,);
-*/

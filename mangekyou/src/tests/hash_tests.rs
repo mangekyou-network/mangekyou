@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::encoding::{Base64, Encoding};
 use crate::hash::{
     Blake2b256, Digest, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash, Sha256,

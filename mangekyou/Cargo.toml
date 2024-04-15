@@ -1,11 +1,13 @@
 [package]
 name = "mangekyou"
-version = "0.1.8"
+version = "0.1.0"
 license = "Apache-2.0"
 edition = "2021"
 publish = ["crates-io"]
 readme = "../README.md"
+authors = ["Mangekyou Network <developer@mangekyou.network>"]
 description = "Common cryptographic library used at Mangekyou Network"
+repository = "https://github.com/mangekyou-network/mangekyou"
 
 [dependencies]
 base64ct = { version = "1.5.3", features = ["alloc"] }

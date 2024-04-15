@@ -1,3 +1,5 @@
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
 use crate::{
     encoding::{Base64, Encoding},
     error::MangekyouError,
@@ -210,7 +212,167 @@ pub trait KeyPair:
     fn generate<R: AllowedRng>(rng: &mut R) -> Self;
 }
 
+/// Trait impl'd by public / private keypairs that can generate recoverable signatures
+pub trait RecoverableSigner {
+    type PubKey;
+    type Sig: RecoverableSignature<Signer = Self, PubKey = Self::PubKey>;
 
+    /// Sign as a recoverable signature.
+    fn sign_recoverable(&self, msg: &[u8]) -> Self::Sig {
+        self.sign_recoverable_with_hash::<<<Self as RecoverableSigner>::Sig as RecoverableSignature>::DefaultHash>(msg)
+    }
+
+    /// Sign as a recoverable signature using the given hash function.
+    ///
+    /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
+    fn sign_recoverable_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Self::Sig;
+}
+
+pub trait VerifyRecoverable: Eq + Sized {
+    type Sig: RecoverableSignature<PubKey = Self>;
+
+    /// Verify a recoverable signature by recovering the public key and compare it to self.
+    fn verify_recoverable(&self, msg: &[u8], signature: &Self::Sig) -> Result<(), MangekyouError> {
+        self.verify_recoverable_with_hash::<<<Self as VerifyRecoverable>::Sig as RecoverableSignature>::DefaultHash>(msg, signature)
+    }
+
+    /// Verify a recoverable signature by recovering the public key and compare it to self.
+    /// The recovery is using the given hash function.
+    ///
+    /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
+    fn verify_recoverable_with_hash<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+        signature: &Self::Sig,
+    ) -> Result<(), MangekyouError> {
+        match signature.recover_with_hash::<H>(msg)? == *self {
+            true => Ok(()),
+            false => Err(MangekyouError::InvalidSignature),
+        }
+    }
+}
+
+/// Trait impl'd by recoverable signatures
+pub trait RecoverableSignature: Sized {
+    type PubKey;
+    type Signer: RecoverableSigner<Sig = Self, PubKey = Self::PubKey>;
+    type DefaultHash: HashFunction<32>;
+
+    /// Recover the public key from this signature.
+    fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, MangekyouError> {
+        self.recover_with_hash::<Self::DefaultHash>(msg)
+    }
+
+    /// Recover the public key from this signature. Assuming that the given hash function was used for signing.
+    ///
+    /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
+    fn recover_with_hash<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+    ) -> Result<Self::PubKey, MangekyouError>;
+}
+
+/// Trait impl'd by aggregated signatures in asymmetric cryptography.
+///
+/// The trait bounds are implemented to allow the aggregation of multiple signatures,
+/// and to verify it against multiple, unaggregated public keys. For signature schemes
+/// where aggregation is not possible, a trivial implementation is provided.
+///
+pub trait AggregateAuthenticator:
+    Display + Serialize + DeserializeOwned + Send + Sync + 'static + Clone
+{
+    type Sig: Authenticator<PubKey = Self::PubKey>;
+    type PubKey: VerifyingKey<Sig = Self::Sig>;
+    type PrivKey: SigningKey<Sig = Self::Sig>;
+
+    /// Combine signatures into a single aggregated signature.
+    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
+        signatures: I,
+    ) -> Result<Self, MangekyouError>;
+
+    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), MangekyouError>;
+    fn add_aggregate(&mut self, signature: Self) -> Result<(), MangekyouError>;
+
+    /// Verify this aggregate signature assuming that all signatures are over the same message.
+    ///
+    /// # Example
+    /// ```rust
+    /// use mangekyou::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use rand::thread_rng;
+    /// use mangekyou::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
+    ///
+    /// let message: &[u8] = b"Hello, world!";
+    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let signature1 = kp1.sign(message);
+    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let signature2 = kp2.sign(message);
+    ///
+    /// let aggregated_signature = BLS12381AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
+    /// let public_keys = &[kp1.public().clone(), kp2.public().clone()];
+    /// assert!(aggregated_signature.verify(public_keys, message).is_ok());
+    /// ```
+    fn verify(
+        &self,
+        pks: &[<Self::Sig as Authenticator>::PubKey],
+        message: &[u8],
+    ) -> Result<(), MangekyouError>;
+
+    /// Verify this aggregate signature where the signatures are over different messages.
+    ///
+    /// # Example
+    /// ```rust
+    /// use mangekyou::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use rand::thread_rng;
+    /// use mangekyou::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
+    ///
+    /// let message1: &[u8] = b"Hello, world!";
+    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    /// let message2: &[u8] = b"Hello, world!!!";
+    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    ///
+    /// let aggregated_signature = BLS12381AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
+    /// let messages = [message1, message2];
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// assert!(aggregated_signature.verify_different_msg(&public_keys, &messages).is_ok());
+    /// ```
+    fn verify_different_msg(
+        &self,
+        pks: &[<Self::Sig as Authenticator>::PubKey],
+        messages: &[&[u8]],
+    ) -> Result<(), MangekyouError>;
+
+    /// Verify a batch of aggregate signatures, each consisting of a number of signatures over the same message.
+    ///
+    /// # Example
+    /// ```rust
+    /// use mangekyou::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use rand::thread_rng;
+    /// use mangekyou::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
+    ///
+    /// let message1: &[u8] = b"Hello, world!";
+    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    /// let aggregated_signature1 = BLS12381AggregateSignature::aggregate(vec!(&signature1)).unwrap();
+    /// let message2: &[u8] = b"1234";
+    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    /// let aggregated_signature2 = BLS12381AggregateSignature::aggregate(vec!(&signature2)).unwrap();
+    ///
+    /// let aggregated_signatures = [&aggregated_signature1, &aggregated_signature2];
+    /// let messages = [message1, message2];
+    /// let pks1 = [kp1.public().clone()];
+    /// let pks2 = [kp2.public().clone()];
+    /// let public_keys = vec!(pks1.iter(), pks2.iter());
+    /// assert!(BLS12381AggregateSignature::batch_verify(&aggregated_signatures, public_keys, &messages).is_ok());
+    /// ```
+    fn batch_verify<'a>(
+        sigs: &[&Self],
+        pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
+        messages: &[&[u8]],
+    ) -> Result<(), MangekyouError>;
+}
 
 /// Trait impl'd by cryptographic material that can be generated randomly such as keys and nonces.
 ///

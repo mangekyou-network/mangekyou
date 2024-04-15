@@ -1,3 +1,5 @@
+// Copyright (c) 2022, Mangekyou Network, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #[macro_use]
 extern crate criterion;
 
