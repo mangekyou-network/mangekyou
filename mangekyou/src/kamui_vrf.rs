@@ -1,12 +1,11 @@
 use crate::error::MangekyouError;
 use crate::traits::AllowedRng;
 
-use solana_zk_token_sdk::curve25519::ristretto::{PodRistrettoPoint, multiscalar_multiply_ristretto};
+use solana_zk_token_sdk::curve25519::ristretto::{PodRistrettoPoint};
 use solana_zk_token_sdk::curve25519::scalar::{PodScalar};
 
 use solana_program::keccak::hash; // Assuming Keccak hash for example purposes
 
-use curve25519_dalek_ng::ristretto::CompressedRistretto;
 use curve25519_dalek_ng::scalar::Scalar;
 
 /// Represents a public key of which is use to verify outputs for a verifiable random function (VRF).
@@ -70,15 +69,16 @@ pub trait VRFProof<const OUTPUT_SIZE: usize> {
 pub mod ecvrf {
     use crate::error::MangekyouError;
     // use crate::groups::{GroupElement, MultiScalarMul, Scalar};
-    use curve25519_dalek_ng::scalar::{Scalar as RistrettoScalar};
+    use curve25519_dalek::scalar::Scalar;
     use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
+    use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
     use crate::hash::{HashFunction, ReverseWrapper, Sha512};
     use crate::serde_helpers::ToFromByteArray;
     use crate::traits::AllowedRng;
     use crate::kamui_vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
     use serde::{Deserialize, Serialize};
     use zeroize::Zeroize;
-    use solana_zk_token_sdk::curve25519::ristretto::{PodRistrettoPoint, multiscalar_multiply_ristretto};
+    use solana_zk_token_sdk::curve25519::ristretto::*;
     use solana_zk_token_sdk::curve25519::scalar::*;
     use sha2::{Sha256, Digest};
 
@@ -143,7 +143,7 @@ pub mod ecvrf {
     impl ECVRFPrivateKey {
         /// Generate scalar/nonce from binary string. See section 5.4.2.2. of draft-irtf-cfrg-vrf-15.
         fn ecvrf_nonce_generation(&self, h_string: &[u8]) -> PodScalar {
-            let hashed_sk_string = H::digest(self.0.to_byte_array());
+            let hashed_sk_string = H::digest(self.0);
             let mut truncated_hashed_sk_string = [0u8; 32];
             truncated_hashed_sk_string.copy_from_slice(&hashed_sk_string.digest[32..64]);
 
@@ -152,7 +152,7 @@ pub mod ecvrf {
             hash_function.update(h_string);
             let k_string = hash_function.finalize();
 
-            PodScalar(RistrettoScalar::from_bytes_mod_order_wide(&k_string.digest).to_bytes())
+            PodScalar(&Scalar::from_bytes_mod_order_wide(&k_string.digest).to_bytes())
         }
     }
 
@@ -166,7 +166,7 @@ pub mod ecvrf {
         let mut hash = H::default();
         hash.update(SUITE_STRING);
         hash.update([0x02]); //challenge_generation_domain_separator_front
-        points.into_iter().for_each(|p| hash.update(p.compress()));
+        points.into_iter().for_each(|p| hash.update(p.0));
         hash.update([0x00]); //challenge_generation_domain_separator_back
         let digest = hash.finalize();
 
@@ -182,7 +182,7 @@ pub mod ecvrf {
         fn from(c: &Challenge) -> Self {
             let mut scalar = [0u8; 32];
             scalar[..C_LEN].copy_from_slice(&c.0);
-            PodScalar(RistrettoScalar::from_bytes_mod_order(&scalar).to_bytes())
+            PodScalar::from(&Scalar::from_bytes_mod_order(scalar))
         }
     }
 
@@ -192,7 +192,7 @@ pub mod ecvrf {
         type PublicKey = ECVRFPublicKey;
 
         fn generate<R: AllowedRng>(rng: &mut R) -> Self {
-            let s = PodScalar::from(RistrettoScalar::random(rng));
+            let s = PodScalar::from(&Scalar::random(rng));
             ECVRFKeyPair::from(ECVRFPrivateKey(s))
         }
 
@@ -211,7 +211,7 @@ pub mod ecvrf {
         //         &(RistrettoPoint::generator() * k),
         //         &(h * k),
         //     ]);
-        //     let s = k + RistrettoScalar::from(&c) * self.sk.0;
+        //     let s = k + Scalar::from(&c) * self.sk.0;
 
         //     ECVRFProof { gamma, c, s }
         // }
@@ -221,7 +221,7 @@ pub mod ecvrf {
             let h_point = self.pk.ecvrf_encode_to_curve_solana(alpha_string);
 
             // Perform the scalar multiplication k * H to get gamma
-            let gamma = multiply_ristretto(PodScalar::from(h_point), self.pk.0);
+            let gamma = multiply_ristretto(&self.pk.0, &h_point).unwrap();
     
             // Generate nonce k using the private key and alpha_string
             // Here, we simulate the generation of nonce from the hashed combination of private key and alpha_string
@@ -235,22 +235,22 @@ pub mod ecvrf {
             // This involves hashing certain elements including the public key, gamma, and the original point H
             let c = ecvrf_challenge_generation(&[
                 &self.pk.0, // Public key as a point
-                &h_pod,     // The hashed point of the input
+                &h_point,     // The hashed point of the input
                 &gamma,     // The gamma point from scalar multiplication
                 // Additional points as required by the protocol
             ]);
     
             // Compute the proof scalar s = (k + c*x) mod q
             // Where x is the private key scalar, and q is the order of the group
-            let s = add_ristretto(k, multiply_ristretto(PodScalar::from(&c), self.sk.0));
+            let s = Scalar::try_from(k) + Scalar::from(RistrettoPoint::try_from(multiply_ristretto(&self.sk.0, &PodRistrettoPoint::from(&c)).unwrap()));
     
-            Ok(ECVRFProof { gamma, c: c.into(), s })
+            ECVRFProof { gamma, c: c.into(), s: PodScalar::from(s) }
         }
     }
 
     impl From<ECVRFPrivateKey> for ECVRFKeyPair {
         fn from(sk: ECVRFPrivateKey) -> Self {
-            let p = PodRistrettoPoint::from(RISTRETTO_BASEPOINT_POINT) * sk.0;
+            let p = PodRistrettoPoint::from(RistrettoPoint::from(RISTRETTO_BASEPOINT_POINT) * sk.0);
             ECVRFKeyPair {
                 pk: ECVRFPublicKey(p),
                 sk,
@@ -285,18 +285,19 @@ pub mod ecvrf {
             let gamma_pod = PodRistrettoPoint::from(self.gamma);
     
             // Convert the challenge and scalar from the proof to PodScalar for operations
-            let challenge_pod = PodScalar(RistrettoScalar::from_bytes_mod_order_wide(&self.c.0).to_bytes());
-            let s_pod = PodScalar(RistrettoScalar::from_bytes_mod_order_wide(&self.s.to_bytes()).to_bytes());
+            let challenge_pod = PodScalar::from(&Scalar::from_bytes_mod_order_wide(&self.c.0));
+            let neg_challenge_pod = PodScalar::from(Scalar::from_bytes_mod_order_wide(&self.c.0 * -1));
+            let s_pod = PodScalar::from(Scalar::from_bytes_mod_order_wide(&self.s.0));
     
             // Compute U = s*B - c*Y using multiscalar multiplication
             let u_point = multiscalar_multiply_ristretto(
-                &[s_pod, -challenge_pod],
-                &[PodRistrettoPoint::from(RISTRETTO_BASEPOINT_POINT), PodRistrettoPoint::from(public_key.0)],
+                &[s_pod, neg_challenge_pod],
+                &[PodRistrettoPoint::from(RistrettoPoint::from(RISTRETTO_BASEPOINT_POINT)), PodRistrettoPoint::from(public_key.0)],
             ).ok_or(MangekyouError::InvalidInput);
     
             // Compute V = s*H - c*Gamma using multiscalar multiplication
             let v_point = multiscalar_multiply_ristretto(
-                &[s_pod, -challenge_pod],
+                &[s_pod, neg_challenge_pod],
                 &[PodRistrettoPoint::from(h_point), gamma_pod],
             ).ok_or(MangekyouError::InvalidInput);
     
@@ -305,10 +306,10 @@ pub mod ecvrf {
                 &public_key.0,
                 &h_point,
                 &self.gamma,
-                &PodRistrettoPoint::from(u_point),
-                &PodRistrettoPoint::from(v_point),
+                &PodRistrettoPoint::from(u_point.unwrap()),
+                &PodRistrettoPoint::from(v_point.unwrap()),
             ]);
-            let c_prime = PodScalar(RistrettoScalar::from_bytes_mod_order_wide(&c_prime_bytes.0).to_bytes());
+            let c_prime = PodScalar::from(&Scalar::from_bytes_mod_order_wide(&c_prime_bytes.0));
     
             // Check if the recomputed challenge matches the original challenge
             if c_prime != challenge_pod {
@@ -323,7 +324,7 @@ pub mod ecvrf {
             let mut hash = H::default();
             hash.update(SUITE_STRING);
             hash.update([0x03]); // proof_to_hash_domain_separator_front
-            hash.update(self.gamma.compress());
+            hash.update(self.gamma.0);
             hash.update([0x00]); // proof_to_hash_domain_separator_back
             hash.finalize().digest
         }
