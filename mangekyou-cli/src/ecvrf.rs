@@ -4,6 +4,8 @@
 use clap::Parser;
 use mangekyou::kamui_vrf::ecvrf::{ECVRFKeyPair, ECVRFPrivateKey, ECVRFProof, ECVRFPublicKey};
 use mangekyou::kamui_vrf::{VRFKeyPair, VRFProof};
+use curve25519_dalek::ristretto::RistrettoPoint;
+use curve25519_dalek::scalar::Scalar;
 use rand::thread_rng;
 use std::io::{Error, ErrorKind};
 
@@ -69,13 +71,9 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
         Command::Keygen => {
             let keypair = ECVRFKeyPair::generate(&mut thread_rng());
             let sk_string =
-                hex::encode(bcs::to_bytes(&keypair.sk).map_err(|_| {
-                    Error::new(ErrorKind::Other, "Failed to serialize secret key.")
-                })?);
+                hex::encode(&keypair.sk);
             let pk_string =
-                hex::encode(bcs::to_bytes(&keypair.pk).map_err(|_| {
-                    Error::new(ErrorKind::Other, "Failed to serialize public key.")
-                })?);
+                hex::encode(&keypair.pk);
 
             let mut result = "Secret key: ".to_string();
             result.push_str(&sk_string);
@@ -92,13 +90,12 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input string."))?;
 
             // Create keypair from the secret key bytes
-            let secret_key = bcs::from_bytes::<ECVRFPrivateKey>(&secret_key_bytes)
-                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Failed to parse private key."))?;
+            let secret_key = ECVRFPrivateKey::from_bytes(&secret_key_bytes).unwrap();
             let kp = ECVRFKeyPair::from(secret_key);
 
             // Generate proof
             let proof = kp.prove(&alpha_string);
-            let proof_string = hex::encode(bcs::to_bytes(&proof).unwrap());
+            let proof_string = hex::encode(proof.to_bytes());
             let proof_hash = hex::encode(proof.to_hash());
 
             let mut result = "Proof:  ".to_string();
@@ -124,10 +121,8 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
 
             // Create public key and proof from parsed bytes
             let public_key: ECVRFPublicKey =
-                bcs::from_bytes::<ECVRFPublicKey>(&public_key_bytes)
-                    .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid public key."))?;
-            let proof: ECVRFProof = bcs::from_bytes::<ECVRFProof>(&proof_bytes)
-                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Unable to parse proof."))?;
+                ECVRFPublicKey::from_bytes(&public_key_bytes).unwrap();
+            let proof: ECVRFProof = ECVRFProof::from_bytes(&proof_bytes).unwrap();
 
             if proof
                 .verify_output(&alpha_string, &public_key, &output)
