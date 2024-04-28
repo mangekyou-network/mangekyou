@@ -6,16 +6,11 @@ extern crate criterion;
 mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, BenchmarkId, Criterion};
-    use mangekyou::groups::bls12381::{
-        G1Element, G2Element, GTElement, Scalar as BlsScalar, G1_ELEMENT_BYTE_LENGTH,
-        G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
-    };
     use mangekyou::groups::multiplier::windowed::WindowedScalarMultiplier;
     use mangekyou::groups::multiplier::ScalarMultiplier;
     use mangekyou::groups::ristretto255::RistrettoPoint;
-    use mangekyou::groups::secp256r1::ProjectivePoint;
     use mangekyou::groups::{
-        secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+        FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
         Scalar,
     };
     use mangekyou::serde_helpers::ToFromByteArray;
@@ -32,9 +27,6 @@ mod group_benches {
 
     fn add(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Add");
-        add_single::<G1Element, _>("BLS12381-G1", &mut group);
-        add_single::<G2Element, _>("BLS12381-G2", &mut group);
-        add_single::<GTElement, _>("BLS12381-GT", &mut group);
         add_single::<RistrettoPoint, _>("Ristretto255", &mut group);
     }
 
@@ -64,37 +56,7 @@ mod group_benches {
 
     fn scale(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Scalar To Point Multiplication");
-        scale_single::<G1Element, _>("BLS12381-G1", &mut group);
-        scale_single::<G2Element, _>("BLS12381-G2", &mut group);
-        scale_single::<GTElement, _>("BLS12381-GT", &mut group);
         scale_single::<RistrettoPoint, _>("Ristretto255", &mut group);
-        scale_single::<ProjectivePoint, _>("Secp256r1", &mut group);
-
-        scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
-            _,
-        >("Secp256r1 Fixed window (16)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
-            _,
-        >("Secp256r1 Fixed window (32)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
-            _,
-        >("Secp256r1 Fixed window (64)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
-            _,
-        >("Secp256r1 Fixed window (128)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
-            _,
-        >("Secp256r1 Fixed window (256)", &mut group);
     }
 
     fn blst_msm_single<G: GroupElement + MultiScalarMul, M: Measurement>(
@@ -113,17 +75,6 @@ mod group_benches {
         c.bench_function(BenchmarkId::new(name.to_string(), len), move |b| {
             b.iter(|| G::multi_scalar_mul(&scalars, &points).unwrap())
         });
-    }
-
-    fn blst_msm(c: &mut Criterion) {
-        static INPUT_SIZES: [usize; 6] = [32, 64, 128, 256, 512, 1024];
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("MSM using BLST");
-        for size in INPUT_SIZES.iter() {
-            blst_msm_single::<G1Element, _>("BLS12381-G1", size, &mut group);
-        }
-        for size in INPUT_SIZES.iter() {
-            blst_msm_single::<G2Element, _>("BLS12381-G2", size, &mut group);
-        }
     }
 
     fn double_scale_single<
@@ -145,40 +96,6 @@ mod group_benches {
         });
     }
 
-    fn double_scale(c: &mut Criterion) {
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("Double Scalar Multiplication");
-
-        double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
-            _,
-        >("Secp256r1 Straus (16)", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
-            _,
-        >("Secp256r1 Straus (32)", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
-            _,
-        >("Secp256r1 Straus (64)", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
-            _,
-        >("Secp256r1 Straus (128)", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
-            _,
-        >("Secp256r1 Straus (256)", &mut group);
-        double_scale_single::<ProjectivePoint, DefaultMultiplier<ProjectivePoint>, _>(
-            "Secp256r1",
-            &mut group,
-        );
-    }
-
     fn hash_to_group_single<G: GroupElement + HashToGroupElement, M: measurement::Measurement>(
         name: &str,
         c: &mut BenchmarkGroup<M>,
@@ -191,8 +108,6 @@ mod group_benches {
 
     fn hash_to_group(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Hash-to-group");
-        hash_to_group_single::<G1Element, _>("BLS12381-G1", &mut group);
-        hash_to_group_single::<G2Element, _>("BLS12381-G2", &mut group);
         hash_to_group_single::<RistrettoPoint, _>("Ristretto255", &mut group);
     }
 
@@ -204,11 +119,6 @@ mod group_benches {
         let y = G::Other::generator()
             * <<G as Pairing>::Other as GroupElement>::ScalarType::rand(&mut thread_rng());
         c.bench_function(&(name.to_string()), move |b| b.iter(|| G::pairing(&x, &y)));
-    }
-
-    fn pairing(c: &mut Criterion) {
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("Pairing");
-        pairing_single::<G1Element, _>("BLS12381-G1", &mut group);
     }
 
     /// Implementation of a `Multiplier` where scalar multiplication is done without any pre-computation by
@@ -255,45 +165,13 @@ mod group_benches {
         });
     }
 
-    fn deserialize(c: &mut Criterion) {
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("Deserialize");
-        deser_single::<BlsScalar, _, { SCALAR_LENGTH }>(
-            "BLS12381-Scalar-trusted",
-            true,
-            &mut group,
-        );
-        deser_single::<BlsScalar, _, { SCALAR_LENGTH }>("BLS12381-Scalar", false, &mut group);
-        deser_single::<G1Element, _, { G1_ELEMENT_BYTE_LENGTH }>(
-            "BLS12381-G1-trusted",
-            true,
-            &mut group,
-        );
-        deser_single::<G1Element, _, { G1_ELEMENT_BYTE_LENGTH }>("BLS12381-G1", false, &mut group);
-        deser_single::<G2Element, _, { G2_ELEMENT_BYTE_LENGTH }>(
-            "BLS12381-G2-trusted",
-            true,
-            &mut group,
-        );
-        deser_single::<G2Element, _, { G2_ELEMENT_BYTE_LENGTH }>("BLS12381-G2", false, &mut group);
-        deser_single::<GTElement, _, { GT_ELEMENT_BYTE_LENGTH }>(
-            "BLS12381-GT-trusted",
-            true,
-            &mut group,
-        );
-        deser_single::<GTElement, _, { GT_ELEMENT_BYTE_LENGTH }>("BLS12381-GT", false, &mut group);
-    }
-
     criterion_group! {
         name = group_benches;
         config = Criterion::default().sample_size(100);
         targets =
-            deserialize,
             add,
             scale,
             hash_to_group,
-            pairing,
-            double_scale,
-            blst_msm,
     }
 }
 

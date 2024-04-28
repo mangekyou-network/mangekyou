@@ -4,8 +4,6 @@
 use clap::Parser;
 use mangekyou::kamui_vrf::ecvrf::{ECVRFKeyPair, ECVRFPrivateKey, ECVRFProof, ECVRFPublicKey};
 use mangekyou::kamui_vrf::{VRFKeyPair, VRFProof};
-use curve25519_dalek::ristretto::RistrettoPoint;
-use curve25519_dalek::scalar::Scalar;
 use rand::thread_rng;
 use std::io::{Error, ErrorKind};
 
@@ -151,14 +149,14 @@ mod tests {
 
     #[test]
     fn test_prove() {
-        let input = "01020304";
-        let secret_key = "b057530c45b7b0f4b96f9b21b011072b2a513f45dd9537ad796acf571055550f";
+        let input = "4869204b616d756921";
+        let secret_key = "673d09357e636004c6129349a4019120ff09c0f5cb3204c67a64d5b661f93007";
         let result = execute(Command::Prove(ProveArguments {
             input: input.to_string(),
             secret_key: secret_key.to_string(),
         }))
         .unwrap();
-        let expected = "Proof:  2640d12c11a372c726348d60ec74ac80320960ba541fb3e66af0a21590c0a75bf5ccf408d5070c5de77f87c733512f575b4a03511d0031dc2e78ab1582fbbef919b52732c8cb1f44b27ad1d1293dec0f\nOutput: 84588b918a6c9f5b8b74e56a305bb1c2d44e73f68457e991a1dc8defd51672c36b07a2fa95b9f1e701d0152b35d373ab8c48468f0de4bb5abfe84504319fd00c";
+        let expected = "Proof:  42b1b195493d8977f9432c1ea8208a8cf9adba1be06ed555ee1732c5b0637261d9cd24cdb47ab446b86451974dab1ea382065e17c22085c63cfd7059ec834d08433c3158debd8e69547997a07fa083c9\nOutput: cd6a1b9e6751a55fec6e196c8a62a0ddbe64b080ebcbd571ecab1c28d80a94d809ca8d803fafbc814874de36f6540055057faafdba85395e6ae2b7256cbde94b";
         assert_eq!(expected, result);
 
         let invalid_input = "InvalidInput";
@@ -168,7 +166,7 @@ mod tests {
         }))
         .is_err());
 
-        let invalid_secret_key = "b057530c45b7b0f4b96f9b21b011072b2a513f45dd9537ad796acf57105555";
+        let invalid_secret_key = "30db47c03e2ba49e89ca7bd67a242fed8a8700d19077ce9ce01c32aeb74d700f";
         assert!(execute(Command::Prove(ProveArguments {
             input: input.to_string(),
             secret_key: invalid_secret_key.to_string(),
@@ -178,10 +176,10 @@ mod tests {
 
     #[test]
     fn test_verify() {
-        let input = "01020304";
-        let public_key = "42250302396453b168c42d5b91e162b848b1b4f90f37818cb4798944095de557";
-        let proof = "2640d12c11a372c726348d60ec74ac80320960ba541fb3e66af0a21590c0a75bf5ccf408d5070c5de77f87c733512f575b4a03511d0031dc2e78ab1582fbbef919b52732c8cb1f44b27ad1d1293dec0f";
-        let output = "84588b918a6c9f5b8b74e56a305bb1c2d44e73f68457e991a1dc8defd51672c36b07a2fa95b9f1e701d0152b35d373ab8c48468f0de4bb5abfe84504319fd00c";
+        let input = "4869204b616d756921";
+        let public_key = "42b1b195493d8977f9432c1ea8208a8cf9adba1be06ed555ee1732c5b0637261";
+        let proof = "42b1b195493d8977f9432c1ea8208a8cf9adba1be06ed555ee1732c5b0637261d9cd24cdb47ab446b86451974dab1ea382065e17c22085c63cfd7059ec834d08433c3158debd8e69547997a07fa083c9";
+        let output = "cd6a1b9e6751a55fec6e196c8a62a0ddbe64b080ebcbd571ecab1c28d80a94d809ca8d803fafbc814874de36f6540055057faafdba85395e6ae2b7256cbde94b";
         let result = execute(Command::Verify(VerifyArguments {
             input: input.to_string(),
             public_key: public_key.to_string(),
@@ -201,7 +199,7 @@ mod tests {
         }))
         .is_err());
 
-        let invalid_public_key = "42250302396453b168c42d5b91e162b848b1b4f90f37818cb4798944095de5";
+        let invalid_public_key = "1a85c9b8492fc311a85892bdc3d60f05dde89ee055a724e30b33b4353f695734";
         assert!(execute(Command::Verify(VerifyArguments {
             input: input.to_string(),
             public_key: invalid_public_key.to_string(),

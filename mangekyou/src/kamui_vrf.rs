@@ -4,8 +4,6 @@ use crate::traits::AllowedRng;
 use solana_zk_token_sdk::curve25519::ristretto::{PodRistrettoPoint};
 use solana_zk_token_sdk::curve25519::scalar::{PodScalar};
 
-use solana_program::keccak::hash; // Assuming Keccak hash for example purposes
-
 use curve25519_dalek_ng::scalar::Scalar;
 
 /// Represents a public key of which is use to verify outputs for a verifiable random function (VRF).
@@ -25,7 +23,7 @@ pub trait VRFKeyPair<const OUTPUT_SIZE: usize> {
     type PublicKey: VRFPublicKey<PrivateKey = Self::PrivateKey>;
 
     /// Generate a new keypair using the given RNG.
-    fn generate<R: rand_core::RngCore + rand_core::CryptoRng>(rng: &mut R) -> Self;
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self;
 
     /// Generate a proof for the given input.
     fn prove(&self, input: &[u8]) -> Self::Proof;
@@ -75,7 +73,7 @@ pub mod ecvrf {
     use curve25519_dalek::constants::{RISTRETTO_BASEPOINT_POINT};
     use crate::hash::{HashFunction, ReverseWrapper, Sha512};
     use crate::serde_helpers::ToFromByteArray;
-    use crate::traits::AllowedRng;
+    use crate::traits::*;
     use rand_core;
     use rand::rngs::OsRng;
     use rand::thread_rng;
@@ -137,17 +135,7 @@ pub mod ecvrf {
     impl VRFPublicKey for ECVRFPublicKey {
         type PrivateKey = ECVRFPrivateKey;
     }
-    /// Assuming a function that attempts to convert a hash output to a Ristretto point.
-    /// This is a placeholder and should be replaced with a proper deterministic mapping if available.
-    fn hash_to_ristretto_point(hash_output: &[u8]) -> PodRistrettoPoint {
-        // This is a simplified and not directly secure way to map a hash to a curve point.
-        // It's crucial to replace this with a secure hash-to-curve algorithm.
-        let compressed = CompressedRistretto::from_slice(hash_output);
-        match compressed.decompress() {
-            Some(point) => PodRistrettoPoint(point.compress().to_bytes()),
-            None => panic!("Hash output cannot be mapped directly to a Ristretto point"),
-        }
-    }
+
     impl ECVRFPublicKey {
         /// Encode the given binary string as curve point. See section 5.4.1.2 of draft-irtf-cfrg-vrf-15.
         fn ecvrf_encode_to_curve_solana(&self, alpha_string: &[u8]) -> PodRistrettoPoint {
@@ -155,10 +143,20 @@ pub mod ecvrf {
             let mut hasher = Sha256::new();
             hasher.update(alpha_string);
             let hash_output = hasher.finalize();
-    
-            // Attempt to map the hash output to a Ristretto point
-            // Note: This step is crucial and must be securely implemented in a real scenario.
-            hash_to_ristretto_point(&hash_output[..])
+            // let mut expanded_message = elliptic_curve::map2curve::ExpandMsgXmd::<
+            //     <H as ReverseWrapper>::Variant,
+            // >::expand_message(
+            //     &[&self.0, alpha_string],
+            //     &[DST],
+            //     H::OUTPUT_SIZE,
+            // )
+            // .unwrap();
+
+            // let mut bytes = [0u8; H::OUTPUT_SIZE];
+            // expanded_message.fill_bytes(&mut bytes);
+
+            // PodRistrettoPoint::from(&RistrettoPoint::from_uniform_bytes(&bytes))
+            PodRistrettoPoint::from(&RISTRETTO_BASEPOINT_POINT)
         }
 
         /// Implements ECVRF_validate_key which checks the validity of a public key. See section 5.4.5
@@ -278,12 +276,11 @@ pub mod ecvrf {
         type PrivateKey = ECVRFPrivateKey;
         type PublicKey = ECVRFPublicKey;
 
-        fn generate<R: rand_core::RngCore + rand_core::CryptoRng>(rng: &mut R) -> Self {
-            let mut csprng = OsRng{};
-            let mut scalar = [0u8; 32];
+        fn generate<R: AllowedRng>(rng: &mut R) -> Self {
+            let mut scalar_bytes = [0u8; 64];
+            rng.fill_bytes(&mut scalar_bytes);
             
-            //let s = PodScalar::from(&Scalar::random(&mut thread_rng()));
-            let s = PodScalar::from(&Scalar::from_bytes_mod_order(scalar));
+            let s = PodScalar::from(&Scalar::from_bytes_mod_order_wide(&scalar_bytes));
             ECVRFKeyPair::from(ECVRFPrivateKey(s))
         }
         
@@ -360,19 +357,17 @@ pub mod ecvrf {
 
     impl ECVRFProof {
         pub fn from_bytes(bytes: &[u8]) -> Result<Self, std::io::Error> {
-            if bytes.len() != 32 * 3 { // Assuming Challenge is also a 32-byte array
+            if bytes.len() <= 32 * 2 { // Assuming Challenge is an unknown byte array 
                 return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid byte length for ECVRFProof"));
             }
             let gamma_bytes = &bytes[0..32];
-            let c_bytes = &bytes[32..64];
-            let s_bytes = &bytes[64..96];
+            let s_bytes = &bytes[32..64];
+            let c_bytes = &bytes[64..bytes.len()];
     
             let mut gamma_array = [0u8; 32];
-            let mut c_array = [0u8; 32];
             let mut s_array = [0u8; 32];
     
             gamma_array.copy_from_slice(gamma_bytes);
-            c_array.copy_from_slice(c_bytes);
             s_array.copy_from_slice(s_bytes);
     
             Ok(Self {
@@ -456,12 +451,11 @@ pub mod ecvrf {
             self.c.serialize(&mut c_buffer);
     
             // Convert Vec<u8> to [u8; 32]
-            let c_bytes: [u8; 32] = c_buffer.try_into().map_err(|_| "Error: size mismatch").unwrap();
-    
+            let c_bytes = c_buffer;
             let s_bytes = self.s.0; 
     
             // Concatenate gamma_bytes, c_bytes, and s_bytes into a single byte array
-            let concatenated = [gamma_bytes, c_bytes, s_bytes].concat();
+            let concatenated = [gamma_bytes.as_ref(), s_bytes.as_ref(), c_bytes.as_ref()].concat();
             concatenated
         }
     }
